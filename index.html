@@ -50,6 +50,8 @@
             margin-bottom: 30px;
             transition: all 0.3s ease;
             background: #f8f9ff;
+            cursor: pointer;
+            position: relative;
         }
 
         .upload-area:hover {
@@ -282,56 +284,89 @@
 
             let selectedFiles = [];
 
-            // Click to upload - prevent file input from triggering when clicking on it directly
-            uploadArea.addEventListener('click', (e) => {
-                // Don't trigger if clicking directly on the file input
-                if (e.target !== fileInput) {
-                    e.preventDefault();
+            // Verify elements exist
+            if (!uploadArea || !fileInput) {
+                console.error('Upload area or file input not found!');
+                return;
+            }
+
+            // Click to upload - simple and direct
+            uploadArea.addEventListener('click', function(e) {
+                e.stopPropagation();
+                console.log('Upload area clicked', e.target);
+                // Only trigger if not clicking on a button inside
+                if (e.target.tagName !== 'BUTTON' && e.target !== fileInput) {
+                    console.log('Triggering file input click');
                     fileInput.click();
                 }
             });
 
-            // Prevent file input from bubbling up
-            fileInput.addEventListener('click', (e) => {
+            // Also make file input accessible
+            fileInput.addEventListener('click', function(e) {
                 e.stopPropagation();
             });
 
             // Drag and drop
-            uploadArea.addEventListener('dragover', (e) => {
+            uploadArea.addEventListener('dragover', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
                 uploadArea.classList.add('dragover');
             });
 
-            uploadArea.addEventListener('dragleave', (e) => {
+            uploadArea.addEventListener('dragenter', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                // Only remove if leaving the upload area itself
+                if (!uploadArea.contains(e.relatedTarget)) {
+                    uploadArea.classList.remove('dragover');
+                }
+            });
+
+            uploadArea.addEventListener('drop', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
                 uploadArea.classList.remove('dragover');
+                
+                const files = e.dataTransfer.files;
+                if (files && files.length > 0) {
+                    handleFiles(files);
+                }
             });
 
-            uploadArea.addEventListener('drop', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                uploadArea.classList.remove('dragover');
-                handleFiles(e.dataTransfer.files);
-            });
-
-            fileInput.addEventListener('change', (e) => {
-                if (e.target.files && e.target.files.length > 0) {
-                    handleFiles(e.target.files);
+            fileInput.addEventListener('change', function(e) {
+                console.log('File input changed', e.target.files);
+                const files = e.target.files;
+                if (files && files.length > 0) {
+                    handleFiles(files);
+                } else {
+                    console.log('No files selected');
                 }
             });
 
             function handleFiles(files) {
-                if (!files || files.length === 0) return;
+                console.log('handleFiles called with:', files);
+                if (!files || files.length === 0) {
+                    console.log('No files provided');
+                    return;
+                }
                 
                 const remainingSlots = 5 - selectedFiles.length;
                 const filesToAdd = Array.from(files).slice(0, remainingSlots);
+                console.log('Files to add:', filesToAdd.length, 'Remaining slots:', remainingSlots);
 
                 filesToAdd.forEach(file => {
                     if (file.type.startsWith('image/') && selectedFiles.length < 5) {
+                        console.log('Adding file:', file.name, file.type);
                         selectedFiles.push(file);
                         displayPreview(file);
+                    } else {
+                        console.log('Skipping file:', file.name, 'Type:', file.type);
                     }
                 });
 
