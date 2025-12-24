@@ -436,25 +436,57 @@
                 generateBtn.disabled = true;
 
                 try {
-                    const formData = new FormData();
-                    selectedFiles.forEach((file, index) => {
-                        formData.append(`image${index + 1}`, file);
+                    // Convert images to base64 and send as JSON instead of FormData
+                    // This avoids n8n's filesystem binary storage issue
+                    const imagePromises = selectedFiles.map(file => {
+                        return new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                resolve(e.target.result); // This is already a data URL
+                            };
+                            reader.readAsDataURL(file);
+                        });
                     });
-                    formData.append('prompt', promptInput.value || 'Create a professional, high-quality portrait photo with studio lighting');
+                    
+                    const imageDataUrls = await Promise.all(imagePromises);
+                    
+                    // Send as JSON instead of FormData
+                    const requestBody = {
+                        images: imageDataUrls,
+                        prompt: promptInput.value || 'Create a professional, high-quality portrait photo with studio lighting'
+                    };
 
                     // Replace with your n8n webhook URL
                     const webhookUrl = 'https://pirondi.app.n8n.cloud/webhook/generate-photo';
 
                     const response = await fetch(webhookUrl, {
                         method: 'POST',
-                        body: formData
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestBody)
                     });
 
                     if (!response.ok) {
-                        throw new Error(`Server error: ${response.status}`);
+                        const errorText = await response.text();
+                        throw new Error(`Server error: ${response.status} - ${errorText}`);
                     }
 
-                    const result = await response.json();
+                    // Get response text first to handle empty responses
+                    const responseText = await response.text();
+                    console.log('Response text:', responseText);
+                    
+                    if (!responseText || responseText.trim() === '') {
+                        throw new Error('Empty response from server');
+                    }
+
+                    let result;
+                    try {
+                        result = JSON.parse(responseText);
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError, 'Response:', responseText);
+                        throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}`);
+                    }
 
                     if (result.error) {
                         throw new Error(result.error);
