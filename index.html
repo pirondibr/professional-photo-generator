@@ -177,11 +177,24 @@
             display: block;
         }
 
-        .result-image {
+        .result-images-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .result-image-item {
             width: 100%;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            margin-top: 20px;
+            overflow: hidden;
+        }
+
+        .result-image-item img {
+            width: 100%;
+            height: auto;
+            display: block;
         }
 
         .loading {
@@ -262,8 +275,8 @@
         <div class="error" id="error"></div>
 
         <div class="result-container" id="resultContainer">
-            <h2 style="text-align: center; margin-bottom: 20px;">Your Generated Photo</h2>
-            <img id="resultImage" class="result-image" alt="Generated professional photo">
+            <h2 style="text-align: center; margin-bottom: 20px;">Your Generated Photos</h2>
+            <div id="resultImages" class="result-images-grid"></div>
         </div>
     </div>
 
@@ -280,7 +293,7 @@
             const loading = document.getElementById('loading');
             const error = document.getElementById('error');
             const resultContainer = document.getElementById('resultContainer');
-            const resultImage = document.getElementById('resultImage');
+            const resultImages = document.getElementById('resultImages');
 
             let selectedFiles = [];
 
@@ -492,12 +505,38 @@
                         throw new Error(result.error);
                     }
 
-                    // Display the result image
-                    if (result.imageUrl || result.image) {
-                        resultImage.src = result.imageUrl || result.image;
+                    // Display all result images (should be 3)
+                    if (result.images && Array.isArray(result.images) && result.images.length > 0) {
+                        // Clear previous images
+                        resultImages.innerHTML = '';
+                        
+                        // Display each image
+                        result.images.forEach((imageUrl, index) => {
+                            const imageItem = document.createElement('div');
+                            imageItem.className = 'result-image-item';
+                            
+                            const img = document.createElement('img');
+                            img.src = imageUrl;
+                            img.alt = `Generated professional photo ${index + 1}`;
+                            
+                            imageItem.appendChild(img);
+                            resultImages.appendChild(imageItem);
+                        });
+                        
+                        resultContainer.classList.add('show');
+                    } else if (result.imageUrl || result.image) {
+                        // Fallback: handle single image response (backward compatibility)
+                        resultImages.innerHTML = '';
+                        const imageItem = document.createElement('div');
+                        imageItem.className = 'result-image-item';
+                        const img = document.createElement('img');
+                        img.src = result.imageUrl || result.image;
+                        img.alt = 'Generated professional photo';
+                        imageItem.appendChild(img);
+                        resultImages.appendChild(imageItem);
                         resultContainer.classList.add('show');
                     } else {
-                        throw new Error('No image received from server');
+                        throw new Error('No images received from server');
                     }
 
                 } catch (err) {
