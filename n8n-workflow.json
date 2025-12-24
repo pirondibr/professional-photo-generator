@@ -5,10 +5,8 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "generate-photo",
-        "responseMode": "json",
-        "options": {
-          "rawBody": false
-        }
+        "responseMode": "responseNode",
+        "options": {}
       },
       "id": "webhook-trigger",
       "name": "Webhook",
@@ -107,7 +105,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify($json) }}",
+        "responseBody": "={{ $json }}",
         "options": {}
       },
       "id": "webhook-response",
