@@ -266,151 +266,181 @@
     </div>
 
     <script>
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
-        const previewContainer = document.getElementById('previewContainer');
-        const generateBtn = document.getElementById('generateBtn');
-        const clearBtn = document.getElementById('clearBtn');
-        const fileCount = document.getElementById('fileCount');
-        const promptInput = document.getElementById('promptInput');
-        const loading = document.getElementById('loading');
-        const error = document.getElementById('error');
-        const resultContainer = document.getElementById('resultContainer');
-        const resultImage = document.getElementById('resultImage');
+        // Wait for DOM to be ready
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            const previewContainer = document.getElementById('previewContainer');
+            const generateBtn = document.getElementById('generateBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const fileCount = document.getElementById('fileCount');
+            const promptInput = document.getElementById('promptInput');
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const resultContainer = document.getElementById('resultContainer');
+            const resultImage = document.getElementById('resultImage');
 
-        let selectedFiles = [];
+            let selectedFiles = [];
 
-        // Click to upload
-        uploadArea.addEventListener('click', () => fileInput.click());
-
-        // Drag and drop
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
-
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            handleFiles(e.dataTransfer.files);
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            handleFiles(e.target.files);
-        });
-
-        function handleFiles(files) {
-            const remainingSlots = 5 - selectedFiles.length;
-            const filesToAdd = Array.from(files).slice(0, remainingSlots);
-
-            filesToAdd.forEach(file => {
-                if (file.type.startsWith('image/') && selectedFiles.length < 5) {
-                    selectedFiles.push(file);
-                    displayPreview(file);
+            // Click to upload - prevent file input from triggering when clicking on it directly
+            uploadArea.addEventListener('click', (e) => {
+                // Don't trigger if clicking directly on the file input
+                if (e.target !== fileInput) {
+                    e.preventDefault();
+                    fileInput.click();
                 }
             });
 
-            updateUI();
-        }
+            // Prevent file input from bubbling up
+            fileInput.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
 
-        function displayPreview(file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const previewItem = document.createElement('div');
-                previewItem.className = 'preview-item';
-                previewItem.dataset.filename = file.name;
+            // Drag and drop
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                uploadArea.classList.add('dragover');
+            });
 
-                const img = document.createElement('img');
-                img.src = e.target.result;
-                img.alt = file.name;
+            uploadArea.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                uploadArea.classList.remove('dragover');
+            });
 
-                const removeBtn = document.createElement('button');
-                removeBtn.className = 'remove-btn';
-                removeBtn.innerHTML = '×';
-                removeBtn.onclick = () => removeFile(file.name);
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                uploadArea.classList.remove('dragover');
+                handleFiles(e.dataTransfer.files);
+            });
 
-                previewItem.appendChild(img);
-                previewItem.appendChild(removeBtn);
-                previewContainer.appendChild(previewItem);
-            };
-            reader.readAsDataURL(file);
-        }
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    handleFiles(e.target.files);
+                }
+            });
 
-        function removeFile(filename) {
-            selectedFiles = selectedFiles.filter(f => f.name !== filename);
-            const previewItem = previewContainer.querySelector(`[data-filename="${filename}"]`);
-            if (previewItem) {
-                previewItem.remove();
-            }
-            updateUI();
-        }
+            function handleFiles(files) {
+                if (!files || files.length === 0) return;
+                
+                const remainingSlots = 5 - selectedFiles.length;
+                const filesToAdd = Array.from(files).slice(0, remainingSlots);
 
-        function updateUI() {
-            fileCount.textContent = `${selectedFiles.length} / 5 photos selected`;
-            generateBtn.disabled = selectedFiles.length === 0;
-        }
-
-        clearBtn.addEventListener('click', () => {
-            selectedFiles = [];
-            previewContainer.innerHTML = '';
-            resultContainer.classList.remove('show');
-            error.classList.remove('show');
-            updateUI();
-        });
-
-        generateBtn.addEventListener('click', async () => {
-            if (selectedFiles.length === 0) return;
-
-            loading.classList.add('show');
-            error.classList.remove('show');
-            resultContainer.classList.remove('show');
-            generateBtn.disabled = true;
-
-            try {
-                const formData = new FormData();
-                selectedFiles.forEach((file, index) => {
-                    formData.append(`image${index + 1}`, file);
-                });
-                formData.append('prompt', promptInput.value || 'Create a professional, high-quality portrait photo with studio lighting');
-
-                // Replace with your n8n webhook URL
-                const webhookUrl = '
-https://pirondi.app.n8n.cloud/webhook/generate-photo';
-
-                const response = await fetch(webhookUrl, {
-                    method: 'POST',
-                    body: formData
+                filesToAdd.forEach(file => {
+                    if (file.type.startsWith('image/') && selectedFiles.length < 5) {
+                        selectedFiles.push(file);
+                        displayPreview(file);
+                    }
                 });
 
-                if (!response.ok) {
-                    throw new Error(`Server error: ${response.status}`);
-                }
-
-                const result = await response.json();
-
-                if (result.error) {
-                    throw new Error(result.error);
-                }
-
-                // Display the result image
-                if (result.imageUrl || result.image) {
-                    resultImage.src = result.imageUrl || result.image;
-                    resultContainer.classList.add('show');
-                } else {
-                    throw new Error('No image received from server');
-                }
-
-            } catch (err) {
-                error.textContent = `Error: ${err.message}`;
-                error.classList.add('show');
-            } finally {
-                loading.classList.remove('show');
-                generateBtn.disabled = false;
+                updateUI();
+                // Reset file input to allow selecting the same file again
+                fileInput.value = '';
             }
+
+            function displayPreview(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const previewItem = document.createElement('div');
+                    previewItem.className = 'preview-item';
+                    previewItem.dataset.filename = file.name;
+
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.alt = file.name;
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'remove-btn';
+                    removeBtn.innerHTML = '×';
+                    removeBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        removeFile(file.name);
+                    };
+
+                    previewItem.appendChild(img);
+                    previewItem.appendChild(removeBtn);
+                    previewContainer.appendChild(previewItem);
+                };
+                reader.onerror = () => {
+                    console.error('Error reading file:', file.name);
+                };
+                reader.readAsDataURL(file);
+            }
+
+            function removeFile(filename) {
+                selectedFiles = selectedFiles.filter(f => f.name !== filename);
+                const previewItem = previewContainer.querySelector(`[data-filename="${filename}"]`);
+                if (previewItem) {
+                    previewItem.remove();
+                }
+                updateUI();
+            }
+
+            function updateUI() {
+                fileCount.textContent = `${selectedFiles.length} / 5 photos selected`;
+                generateBtn.disabled = selectedFiles.length === 0;
+            }
+
+            clearBtn.addEventListener('click', () => {
+                selectedFiles = [];
+                previewContainer.innerHTML = '';
+                resultContainer.classList.remove('show');
+                error.classList.remove('show');
+                fileInput.value = '';
+                updateUI();
+            });
+
+            generateBtn.addEventListener('click', async () => {
+                if (selectedFiles.length === 0) return;
+
+                loading.classList.add('show');
+                error.classList.remove('show');
+                resultContainer.classList.remove('show');
+                generateBtn.disabled = true;
+
+                try {
+                    const formData = new FormData();
+                    selectedFiles.forEach((file, index) => {
+                        formData.append(`image${index + 1}`, file);
+                    });
+                    formData.append('prompt', promptInput.value || 'Create a professional, high-quality portrait photo with studio lighting');
+
+                    // Replace with your n8n webhook URL
+                    const webhookUrl = 'https://pirondi.app.n8n.cloud/webhook/generate-photo';
+
+                    const response = await fetch(webhookUrl, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Server error: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+
+                    if (result.error) {
+                        throw new Error(result.error);
+                    }
+
+                    // Display the result image
+                    if (result.imageUrl || result.image) {
+                        resultImage.src = result.imageUrl || result.image;
+                        resultContainer.classList.add('show');
+                    } else {
+                        throw new Error('No image received from server');
+                    }
+
+                } catch (err) {
+                    error.textContent = `Error: ${err.message}`;
+                    error.classList.add('show');
+                } finally {
+                    loading.classList.remove('show');
+                    generateBtn.disabled = false;
+                }
+            });
         });
     </script>
 </body>
