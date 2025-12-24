@@ -57,6 +57,8 @@
     },
     {
       "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "method": "POST",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -89,8 +91,7 @@
       "name": "OpenRouter Gemini API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1050, 300],
-      "url": "https://openrouter.ai/api/v1/chat/completions"
+      "position": [1050, 300]
     },
     {
       "parameters": {
