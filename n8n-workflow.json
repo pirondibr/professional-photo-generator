@@ -1,0 +1,195 @@
+{
+  "name": "Professional Photo Generator - OpenRouter Gemini",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-photo",
+        "responseMode": "json",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "generate-photo-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract prompt and convert image files to base64\nconst items = $input.all();\nconst item = items[0];\n\n// Extract prompt from body\nconst prompt = item.json.body?.prompt || item.json.prompt || 'Create a professional, high-quality portrait photo with studio lighting, business attire, clean background';\n\n// Extract and convert image files to base64\nconst imageBase64Array = [];\nfor (let i = 1; i <= 5; i++) {\n  const imageKey = `image${i}`;\n  if (item.binary && item.binary[imageKey]) {\n    const binaryData = item.binary[imageKey];\n    const base64Data = binaryData.data;\n    const mimeType = binaryData.mimeType || 'image/jpeg';\n    \n    // Format as data URL for OpenRouter\n    imageBase64Array.push(`data:${mimeType};base64,${base64Data}`);\n  }\n}\n\nreturn {\n  json: {\n    prompt: prompt,\n    images: imageBase64Array,\n    imageCount: imageBase64Array.length,\n    hasImages: imageBase64Array.length > 0\n  }\n};"
+      },
+      "id": "process-upload",
+      "name": "Process Upload & Convert Images",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "enhance-prompt",
+              "name": "enhancedPrompt",
+              "value": "={{ $json.imageCount > 0 ? 'Based on the uploaded photos, ' + $json.prompt : $json.prompt }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "enhance-prompt",
+      "name": "Enhance Prompt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare request body for OpenRouter Gemini 2.5 Flash Image Nano Banana\n// Using chat completions endpoint with vision capabilities\nconst items = $input.all();\nconst item = items[0];\n\n// Build the request payload for Gemini with vision\nconst requestBody = {\n  model: 'google/gemini-2.5-flash-image',\n  messages: [\n    {\n      role: 'user',\n      content: []\n    }\n  ]\n};\n\n// Add images if available (Gemini supports multiple images)\nif (item.json.images && item.json.images.length > 0) {\n  item.json.images.forEach(imageDataUrl => {\n    requestBody.messages[0].content.push({\n      type: 'image_url',\n      image_url: {\n        url: imageDataUrl\n      }\n    });\n  });\n}\n\n// Add text prompt - instruct Gemini to generate a professional photo\nconst promptText = `Generate a professional, high-quality portrait photo. ${item.json.enhancedPrompt}\n\nPlease create a realistic professional headshot image with the following characteristics:\n- Studio-quality lighting\n- Professional business attire\n- Clean, neutral background\n- High resolution and sharp focus\n- Professional photography style`;\n\nrequestBody.messages[0].content.push({\n  type: 'text',\n  text: promptText\n});\n\nreturn {\n  json: requestBody\n};"
+      },
+      "id": "prepare-request",
+      "name": "Prepare OpenRouter Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer YOUR_OPENROUTER_API_KEY_HERE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "HTTP-Referer",
+              "value": "https://your-website.com"
+            },
+            {
+              "name": "X-Title",
+              "value": "Professional Photo Generator"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "openrouter-request",
+      "name": "OpenRouter Gemini API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1050, 300],
+      "url": "https://openrouter.ai/api/v1/chat/completions"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the generated image from OpenRouter/Gemini response\nconst items = $input.all();\nconst item = items[0];\n\nlet imageUrl = '';\nlet imageBase64 = '';\nlet error = null;\n\ntry {\n  // Check for error first\n  if (item.json.error) {\n    error = item.json.error.message || item.json.error.error?.message || 'Unknown error from OpenRouter';\n  }\n  // Check for direct image generation response format (images/generations endpoint)\n  else if (item.json.data && Array.isArray(item.json.data) && item.json.data[0]) {\n    imageUrl = item.json.data[0].url || '';\n    imageBase64 = item.json.data[0].b64_json || '';\n  }\n  // Check for chat completions response format\n  else if (item.json.choices && item.json.choices[0]) {\n    const choice = item.json.choices[0];\n    \n    if (choice.message && choice.message.content) {\n      const content = choice.message.content;\n      \n      // Handle array content (multimodal)\n      if (Array.isArray(content)) {\n        const imageContent = content.find(c => c.type === 'image_url' || c.type === 'image');\n        if (imageContent) {\n          imageUrl = imageContent.image_url?.url || imageContent.url || '';\n          imageBase64 = imageContent.image_url?.url || imageContent.url || '';\n        }\n        // Also check for text content that might contain image data\n        const textContent = content.find(c => c.type === 'text');\n        if (textContent && textContent.text && textContent.text.includes('data:image')) {\n          imageBase64 = textContent.text;\n        }\n      }\n      // Handle string content\n      else if (typeof content === 'string') {\n        if (content.includes('data:image')) {\n          imageBase64 = content;\n        } else if (content.startsWith('http')) {\n          imageUrl = content;\n        }\n      }\n    }\n  }\n  \n  // If still no image found, check for alternative response structures\n  if (!imageUrl && !imageBase64) {\n    // Check for nested data structures\n    if (item.json.result && item.json.result.image) {\n      imageUrl = item.json.result.image;\n    } else if (item.json.image) {\n      imageUrl = item.json.image;\n    } else if (item.json.url) {\n      imageUrl = item.json.url;\n    } else {\n      error = 'No image data found in response. Response structure: ' + JSON.stringify(item.json).substring(0, 300);\n    }\n  }\n} catch (e) {\n  error = e.message + ' - Response: ' + JSON.stringify(item.json).substring(0, 300);\n}\n\nreturn {\n  json: {\n    success: !error && (!!imageUrl || !!imageBase64),\n    imageUrl: imageUrl || imageBase64,\n    image: imageBase64 || imageUrl,\n    error: error,\n    rawResponse: item.json\n  }\n};"
+      },
+      "id": "process-response",
+      "name": "Process Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Upload & Convert Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Upload & Convert Images": {
+      "main": [
+        [
+          {
+            "node": "Enhance Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enhance Prompt": {
+      "main": [
+        [
+          {
+            "node": "Prepare OpenRouter Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare OpenRouter Request": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter Gemini API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Gemini API": {
+      "main": [
+        [
+          {
+            "node": "Process Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Response": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
