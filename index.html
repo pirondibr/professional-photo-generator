@@ -505,19 +505,21 @@
                         throw new Error(result.error);
                     }
 
-                    // Display all result images (should be 3)
+                    // Display all result images (should be 4)
                     if (result.images && Array.isArray(result.images) && result.images.length > 0) {
-                        // Clear previous images
-                        resultImages.innerHTML = '';
+                        // Don't clear previous images - append new ones instead
+                        // resultImages.innerHTML = ''; // REMOVED: Keep previous images
                         
-                        // Display each image
+                        // Display each new image (append to existing ones)
                         result.images.forEach((imageUrl, index) => {
                             const imageItem = document.createElement('div');
                             imageItem.className = 'result-image-item';
                             
                             const img = document.createElement('img');
                             img.src = imageUrl;
-                            img.alt = `Generated professional photo ${index + 1}`;
+                            // Use timestamp to make alt text unique
+                            const timestamp = new Date().toLocaleTimeString();
+                            img.alt = `Generated professional photo ${index + 1} - ${timestamp}`;
                             
                             imageItem.appendChild(img);
                             resultImages.appendChild(imageItem);
@@ -526,12 +528,14 @@
                         resultContainer.classList.add('show');
                     } else if (result.imageUrl || result.image) {
                         // Fallback: handle single image response (backward compatibility)
-                        resultImages.innerHTML = '';
+                        // Don't clear previous images - append new one instead
+                        // resultImages.innerHTML = ''; // REMOVED: Keep previous images
                         const imageItem = document.createElement('div');
                         imageItem.className = 'result-image-item';
                         const img = document.createElement('img');
                         img.src = result.imageUrl || result.image;
-                        img.alt = 'Generated professional photo';
+                        const timestamp = new Date().toLocaleTimeString();
+                        img.alt = `Generated professional photo - ${timestamp}`;
                         imageItem.appendChild(img);
                         resultImages.appendChild(imageItem);
                         resultContainer.classList.add('show');
