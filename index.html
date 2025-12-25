@@ -445,7 +445,8 @@
 
                 loading.classList.add('show');
                 error.classList.remove('show');
-                resultContainer.classList.remove('show');
+                // Keep resultContainer visible so previous images remain visible
+                // resultContainer.classList.remove('show'); // REMOVED: Keep container visible
                 generateBtn.disabled = true;
 
                 try {
