@@ -439,18 +439,16 @@
 
                 loading.classList.add('show');
                 error.classList.remove('show');
-                // Keep resultContainer visible so previous images remain visible
-                // resultContainer.classList.remove('show'); // REMOVED: Keep container visible
+                resultContainer.classList.add('show');
                 generateBtn.disabled = true;
 
                 try {
-                    // Convert images to base64 and send as JSON instead of FormData
-                    // This avoids n8n's filesystem binary storage issue
+                    // Convert images to base64
                     const imagePromises = selectedFiles.map(file => {
                         return new Promise((resolve) => {
                             const reader = new FileReader();
                             reader.onload = (e) => {
-                                resolve(e.target.result); // This is already a data URL
+                                resolve(e.target.result);
                             };
                             reader.readAsDataURL(file);
                         });
@@ -458,115 +456,99 @@
                     
                     const imageDataUrls = await Promise.all(imagePromises);
                     
-                    // Send as JSON - no prompt needed, workflow has predefined prompts
-                    const requestBody = {
-                        images: imageDataUrls
-                    };
-
-                    // New workflow with predefined prompts
-                    const webhookUrl = 'https://pirondi.app.n8n.cloud/webhook/generate-photo-v2';
-
-                    const response = await fetch(webhookUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(requestBody)
-                    });
-
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(`Server error: ${response.status} - ${errorText}`);
-                    }
-
-                    // Get response text first to handle empty responses
-                    const responseText = await response.text();
-                    console.log('Response text length:', responseText.length);
-                    console.log('Response text preview:', responseText.substring(0, 500));
+                    // Update loading message
+                    const loadingText = loading.querySelector('p');
                     
-                    if (!responseText || responseText.trim() === '') {
-                        throw new Error('Empty response from server');
-                    }
-
-                    let result;
-                    try {
-                        result = JSON.parse(responseText);
-                        console.log('=== DEBUG: Full Response ===');
-                        console.log('Parsed result:', result);
-                        console.log('Result keys:', Object.keys(result));
-                        console.log('Images array:', result.images);
-                        console.log('Images is array?', Array.isArray(result.images));
-                        console.log('Images count:', result.images ? result.images.length : 0);
-                        console.log('Image count field:', result.imageCount);
-                        console.log('Total requests:', result.totalRequests);
-                        console.log('Success:', result.success);
-                        if (result.images && result.images.length > 0) {
-                            console.log('First image URL length:', result.images[0] ? result.images[0].length : 0);
-                            console.log('First image preview:', result.images[0] ? result.images[0].substring(0, 100) : 'none');
+                    // Process 8 prompts sequentially (one at a time)
+                    const webhookUrl = 'https://pirondi.app.n8n.cloud/webhook/generate-photo-single';
+                    let totalImagesGenerated = 0;
+                    
+                    for (let promptIndex = 0; promptIndex < 8; promptIndex++) {
+                        // Update progress
+                        if (loadingText) {
+                            loadingText.textContent = `Generating images ${promptIndex + 1}/8... (${totalImagesGenerated} images so far)`;
                         }
-                        console.log('Errors:', result.errors);
-                        console.log('=== END DEBUG ===');
-                    } catch (parseError) {
-                        console.error('JSON parse error:', parseError, 'Response:', responseText);
-                        throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}`);
-                    }
-
-                    if (result.error) {
-                        throw new Error(result.error);
-                    }
-
-                    // Display all result images (should be 24)
-                    if (result.images && Array.isArray(result.images) && result.images.length > 0) {
-                        console.log('✅ Displaying', result.images.length, 'images');
-                        console.log('Image URLs:', result.images);
-                        // Don't clear previous images - append new ones instead
-                        // resultImages.innerHTML = ''; // REMOVED: Keep previous images
                         
-                        // Display each new image (append to existing ones)
-                        result.images.forEach((imageUrl, index) => {
-                            console.log(`Creating image ${index + 1}/${result.images.length}, URL length: ${imageUrl ? imageUrl.length : 0}`);
-                            const imageItem = document.createElement('div');
-                            imageItem.className = 'result-image-item';
-                            
-                            const img = document.createElement('img');
-                            img.src = imageUrl;
-                            // Use timestamp to make alt text unique
-                            const timestamp = new Date().toLocaleTimeString();
-                            img.alt = `Generated professional photo ${index + 1} - ${timestamp}`;
-                            
-                            // Add error handler to see if images fail to load
-                            img.onerror = function() {
-                                console.error(`Failed to load image ${index + 1}:`, imageUrl.substring(0, 100));
-                            };
-                            img.onload = function() {
-                                console.log(`✅ Image ${index + 1} loaded successfully`);
-                            };
-                            
-                            imageItem.appendChild(img);
-                            resultImages.appendChild(imageItem);
-                            console.log(`Image ${index + 1} added to DOM`);
+                        console.log(`Processing prompt ${promptIndex + 1}/8`);
+                        
+                        const requestBody = {
+                            images: imageDataUrls,
+                            promptIndex: promptIndex
+                        };
+
+                        const response = await fetch(webhookUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(requestBody)
                         });
-                        console.log(`✅ Finished displaying ${result.images.length} images`);
+
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            console.error(`Error for prompt ${promptIndex + 1}:`, errorText);
+                            continue; // Skip this prompt and continue with next
+                        }
+
+                        const responseText = await response.text();
                         
-                        resultContainer.classList.add('show');
-                    } else if (result.imageUrl || result.image) {
-                        // Fallback: handle single image response (backward compatibility)
-                        // Don't clear previous images - append new one instead
-                        // resultImages.innerHTML = ''; // REMOVED: Keep previous images
-                        const imageItem = document.createElement('div');
-                        imageItem.className = 'result-image-item';
-                        const img = document.createElement('img');
-                        img.src = result.imageUrl || result.image;
-                        const timestamp = new Date().toLocaleTimeString();
-                        img.alt = `Generated professional photo - ${timestamp}`;
-                        imageItem.appendChild(img);
-                        resultImages.appendChild(imageItem);
-                        resultContainer.classList.add('show');
-                    } else {
-                        throw new Error('No images received from server');
+                        if (!responseText || responseText.trim() === '') {
+                            console.warn(`Empty response for prompt ${promptIndex + 1}`);
+                            continue;
+                        }
+
+                        let result;
+                        try {
+                            result = JSON.parse(responseText);
+                        } catch (parseError) {
+                            console.error(`JSON parse error for prompt ${promptIndex + 1}:`, parseError);
+                            continue;
+                        }
+
+                        if (result.error) {
+                            console.error(`Error for prompt ${promptIndex + 1}:`, result.error);
+                            continue;
+                        }
+
+                        // Display images as they arrive (progressive loading)
+                        if (result.images && Array.isArray(result.images) && result.images.length > 0) {
+                            console.log(`✅ Received ${result.images.length} images for prompt ${promptIndex + 1}`);
+                            
+                            result.images.forEach((imageUrl, imgIndex) => {
+                                const imageItem = document.createElement('div');
+                                imageItem.className = 'result-image-item';
+                                
+                                const img = document.createElement('img');
+                                img.src = imageUrl;
+                                const timestamp = new Date().toLocaleTimeString();
+                                img.alt = `Generated photo - Prompt ${promptIndex + 1}, Image ${imgIndex + 1} - ${timestamp}`;
+                                
+                                img.onerror = function() {
+                                    console.error(`Failed to load image from prompt ${promptIndex + 1}, image ${imgIndex + 1}`);
+                                };
+                                img.onload = function() {
+                                    totalImagesGenerated++;
+                                    console.log(`✅ Image loaded: Prompt ${promptIndex + 1}, Image ${imgIndex + 1} (Total: ${totalImagesGenerated})`);
+                                };
+                                
+                                imageItem.appendChild(img);
+                                resultImages.appendChild(imageItem);
+                            });
+                        }
+                        
+                        // Small delay between requests to avoid overwhelming the server
+                        if (promptIndex < 7) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                    }
+                    
+                    console.log(`✅ Finished! Generated ${totalImagesGenerated} images total`);
+                    if (loadingText) {
+                        loadingText.textContent = `Complete! Generated ${totalImagesGenerated} images.`;
                     }
 
                 } catch (err) {
+                    console.error('Error:', err);
                     error.textContent = `Error: ${err.message}`;
                     error.classList.add('show');
                 } finally {

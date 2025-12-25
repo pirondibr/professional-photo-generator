@@ -1,0 +1,187 @@
+{
+  "name": "Professional Photo Generator V2 - Single Prompt (3 images)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-photo-single",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "generate-photo-single-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract images and promptIndex from JSON body\n// Frontend sends: { images: [...], promptIndex: 0-7 }\nconst items = $input.all();\nconst item = items[0];\n\n// Debug: Log what we received\nconsole.log('Received item keys:', Object.keys(item));\n\n// Extract data from JSON body\nlet imageBase64Array = [];\nlet promptIndex = 0;\n\n// Try multiple ways to extract the data\nlet bodyData = null;\n\n// Method 1: Check if data is directly in item.json\nif (item.json && (item.json.images || item.json.promptIndex !== undefined)) {\n  bodyData = item.json;\n  console.log('Method 1: Using direct item.json data');\n}\n\n// Method 2: Check if body exists and is already an object\nif (!bodyData && item.json && item.json.body) {\n  bodyData = item.json.body;\n  if (typeof bodyData === 'string') {\n    try {\n      bodyData = JSON.parse(bodyData);\n      console.log('Method 2: Parsed body from string');\n    } catch (e) {\n      console.error('Failed to parse JSON body:', e.message);\n      bodyData = null;\n    }\n  } else if (typeof bodyData === 'object') {\n    console.log('Method 2: Using item.json.body as object');\n  } else {\n    bodyData = null;\n  }\n}\n\n// Method 3: Check item.body directly\nif (!bodyData && item.body) {\n  bodyData = typeof item.body === 'string' ? JSON.parse(item.body) : item.body;\n  console.log('Method 3: Using item.body data');\n}\n\n// Extract images and promptIndex from bodyData\nif (bodyData) {\n  if (bodyData.images && Array.isArray(bodyData.images)) {\n    imageBase64Array = bodyData.images.slice(0, 5);\n    console.log('Found', imageBase64Array.length, 'images');\n  }\n  if (bodyData.promptIndex !== undefined) {\n    promptIndex = parseInt(bodyData.promptIndex) || 0;\n    console.log('Prompt index:', promptIndex);\n  }\n}\n\nreturn {\n  json: {\n    images: imageBase64Array,\n    promptIndex: promptIndex,\n    imageCount: imageBase64Array.length,\n    hasImages: imageBase64Array.length > 0\n  }\n};"
+      },
+      "id": "process-upload",
+      "name": "Process Upload & Extract Images",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create 3 duplicates of the current prompt (one prompt, 3 variations)\nconst items = $input.all();\nconst item = items[0];\n\n// 8 predefined prompts\nconst prompts = [\n  'keep all the same, but choose a nice background, and nice clothes',\n  'keep all the same, but choose a nice studio background, and nice clothes',\n  'keep all the same, but choose a nice business background, and nice business clothes',\n  'keep all the same, but choose a nice street background, and nice street clothes',\n  'keep all the same, but choose a nice dating background, and nice dating clothes',\n  'choose a nice studio background, and nice clothes High-definition, 4K quality, ultra-realistic skin texture',\n  'An ultra realistic portrait of this person in the attached image, maintaining his physical characteristics and consistency of the character, wearing a navy blue cargo jacket over a white t-shirt. Soft navy blue gradient background, studio light rambrandt style, cinematic, contrast, 4k, realistic, detailed, high sharpness, professional skin retouching, 4:5 radius',\n  'Transform this photos into a professional studio-lit headshot. Maintain exact facial features and identity. Wear a high-quality, fitted grey crew-neck long-sleeve shirt with a subtle texture. Neutral, calm expression with direct eye contact. Lighting should be soft studio flash from the side, creating gentle shadows for depth. Set against a clean, charcoal-grey backdrop with a slight gradient. High-definition, 4K quality, ultra-realistic skin texture'\n];\n\n// Get the prompt index from the request (0-7)\nconst promptIndex = item.json.promptIndex || 0;\nconst prompt = prompts[promptIndex] || prompts[0];\n\nconsole.log('Using prompt index:', promptIndex, 'out of', prompts.length);\n\n// Create 3 duplicates of this single prompt\nconst duplicatedItems = [];\nfor (let i = 0; i < 3; i++) {\n  duplicatedItems.push({\n    json: {\n      ...item.json,\n      prompt: prompt,\n      promptIndex: promptIndex,\n      duplicateIndex: i + 1,\n      requestIndex: i + 1\n    }\n  });\n}\n\nconsole.log('Created', duplicatedItems.length, 'items for prompt', promptIndex + 1);\n\nreturn duplicatedItems;"
+      },
+      "id": "create-duplicates",
+      "name": "Create 3 Duplicates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare request body for OpenRouter Gemini 2.5 Flash Image\n// Process 3 items (3 duplicates of one prompt)\nconst items = $input.all();\n\nconsole.log('Prepare Request - Processing', items.length, 'item(s)');\n\nconst preparedRequests = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  \n  const requestBody = {\n    model: 'google/gemini-2.5-flash-image',\n    modalities: ['image', 'text'],\n    messages: [\n      {\n        role: 'user',\n        content: []\n      }\n    ]\n  };\n  \n  let promptText = item.json?.prompt || 'Create a professional, high-quality portrait photo';\n  \n  const contentArray = [];\n  \n  // Add images if available\n  if (item.json.images && item.json.images.length > 0) {\n    item.json.images.forEach((imageDataUrl, index) => {\n      if (index < 5) {\n        contentArray.push({\n          type: 'image_url',\n          image_url: {\n            url: imageDataUrl\n          }\n        });\n      }\n    });\n  }\n  \n  // Add text prompt\n  contentArray.push({\n    type: 'text',\n    text: promptText\n  });\n  \n  requestBody.messages[0].content = contentArray;\n  \n  preparedRequests.push({\n    json: requestBody\n  });\n}\n\nreturn preparedRequests;"
+      },
+      "id": "prepare-request",
+      "name": "Prepare OpenRouter Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer YOUR_OPENROUTER_API_KEY_HERE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "HTTP-Referer",
+              "value": "https://your-website.com"
+            },
+            {
+              "name": "X-Title",
+              "value": "Professional Photo Generator V2"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "openrouter-request",
+      "name": "OpenRouter Gemini API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract images from 3 responses (memory-efficient)\nconst items = $input.all();\n\nconsole.log('Process Response: Processing', items.length, 'item(s)');\n\nconst processedItems = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  let imageUrl = '';\n  let imageBase64 = '';\n  \n  if (!item || !item.json) {\n    processedItems.push({\n      json: {\n        success: false,\n        error: 'No data received',\n        imageUrl: null\n      }\n    });\n    continue;\n  }\n  \n  try {\n    if (item.json.error) {\n      const errorMsg = item.json.error.message || JSON.stringify(item.json.error);\n      processedItems.push({\n        json: {\n          success: false,\n          error: 'OpenRouter API Error: ' + errorMsg,\n          imageUrl: null\n        }\n      });\n      continue;\n    }\n    \n    // Check for image in response\n    if (item.json.data && Array.isArray(item.json.data) && item.json.data[0]) {\n      imageUrl = item.json.data[0].url || '';\n      imageBase64 = item.json.data[0].b64_json || '';\n    } else if (item.json.choices && item.json.choices[0]) {\n      const choice = item.json.choices[0];\n      \n      if (choice.message && choice.message.images && Array.isArray(choice.message.images)) {\n        const firstImage = choice.message.images[0];\n        if (firstImage) {\n          imageUrl = firstImage.image_url?.url || firstImage.url || '';\n          imageBase64 = firstImage.image_url?.url || firstImage.url || '';\n        }\n      } else if (choice.message && choice.message.content) {\n        const content = choice.message.content;\n        \n        if (Array.isArray(content)) {\n          const imageContent = content.find(c => c.type === 'image_url' || c.type === 'image');\n          if (imageContent) {\n            imageUrl = imageContent.image_url?.url || imageContent.url || '';\n            imageBase64 = imageContent.image_url?.url || imageContent.url || '';\n          }\n          const textContent = content.find(c => c.type === 'text');\n          if (textContent && textContent.text && textContent.text.includes('data:image')) {\n            imageBase64 = textContent.text;\n          }\n        } else if (typeof content === 'string') {\n          if (content.includes('data:image')) {\n            imageBase64 = content;\n          } else if (content.startsWith('http')) {\n            imageUrl = content;\n          }\n        }\n      }\n    }\n    \n    if (!imageUrl && !imageBase64) {\n      if (item.json.result && item.json.result.image) {\n        imageUrl = item.json.result.image;\n      } else if (item.json.image) {\n        imageUrl = item.json.image;\n      } else if (item.json.url) {\n        imageUrl = item.json.url;\n      }\n    }\n    \n    if (imageUrl || imageBase64) {\n      const finalImageUrl = imageUrl || imageBase64;\n      processedItems.push({\n        json: {\n          success: true,\n          imageUrl: finalImageUrl,\n          image: finalImageUrl\n        }\n      });\n    } else {\n      processedItems.push({\n        json: {\n          success: false,\n          error: 'No image data found',\n          imageUrl: null\n        }\n      });\n    }\n  } catch (e) {\n    processedItems.push({\n      json: {\n        success: false,\n        error: e.message,\n        imageUrl: null\n      }\n    });\n  }\n}\n\n// Aggregate into single response\nconst images = [];\nconst errors = [];\n\nfor (let i = 0; i < processedItems.length; i++) {\n  const item = processedItems[i];\n  if (item.json && item.json.success && item.json.imageUrl) {\n    images.push(item.json.imageUrl);\n  } else if (item.json && item.json.error) {\n    errors.push(`Request ${i + 1}: ${item.json.error}`);\n  }\n}\n\nconsole.log('Total images extracted:', images.length);\n\nreturn [{\n  json: {\n    success: images.length > 0,\n    images: images,\n    imageCount: images.length,\n    errors: errors.length > 0 ? errors : null,\n    promptIndex: items[0]?.json?.promptIndex || 0\n  }\n}];"
+      },
+      "id": "process-response",
+      "name": "Process & Aggregate Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json ? JSON.stringify($json) : JSON.stringify({success: false, error: 'No data received', images: []}) }}",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Upload & Extract Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Upload & Extract Images": {
+      "main": [
+        [
+          {
+            "node": "Create 3 Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create 3 Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Prepare OpenRouter Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare OpenRouter Request": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter Gemini API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Gemini API": {
+      "main": [
+        [
+          {
+            "node": "Process & Aggregate Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process & Aggregate Response": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
+
