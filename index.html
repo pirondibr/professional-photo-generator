@@ -491,9 +491,21 @@
                     let result;
                     try {
                         result = JSON.parse(responseText);
+                        console.log('=== DEBUG: Full Response ===');
                         console.log('Parsed result:', result);
+                        console.log('Result keys:', Object.keys(result));
                         console.log('Images array:', result.images);
+                        console.log('Images is array?', Array.isArray(result.images));
                         console.log('Images count:', result.images ? result.images.length : 0);
+                        console.log('Image count field:', result.imageCount);
+                        console.log('Total requests:', result.totalRequests);
+                        console.log('Success:', result.success);
+                        if (result.images && result.images.length > 0) {
+                            console.log('First image URL length:', result.images[0] ? result.images[0].length : 0);
+                            console.log('First image preview:', result.images[0] ? result.images[0].substring(0, 100) : 'none');
+                        }
+                        console.log('Errors:', result.errors);
+                        console.log('=== END DEBUG ===');
                     } catch (parseError) {
                         console.error('JSON parse error:', parseError, 'Response:', responseText);
                         throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}`);
@@ -505,12 +517,14 @@
 
                     // Display all result images (should be 24)
                     if (result.images && Array.isArray(result.images) && result.images.length > 0) {
-                        console.log('Displaying', result.images.length, 'images');
+                        console.log('✅ Displaying', result.images.length, 'images');
+                        console.log('Image URLs:', result.images);
                         // Don't clear previous images - append new ones instead
                         // resultImages.innerHTML = ''; // REMOVED: Keep previous images
                         
                         // Display each new image (append to existing ones)
                         result.images.forEach((imageUrl, index) => {
+                            console.log(`Creating image ${index + 1}/${result.images.length}, URL length: ${imageUrl ? imageUrl.length : 0}`);
                             const imageItem = document.createElement('div');
                             imageItem.className = 'result-image-item';
                             
@@ -520,9 +534,19 @@
                             const timestamp = new Date().toLocaleTimeString();
                             img.alt = `Generated professional photo ${index + 1} - ${timestamp}`;
                             
+                            // Add error handler to see if images fail to load
+                            img.onerror = function() {
+                                console.error(`Failed to load image ${index + 1}:`, imageUrl.substring(0, 100));
+                            };
+                            img.onload = function() {
+                                console.log(`✅ Image ${index + 1} loaded successfully`);
+                            };
+                            
                             imageItem.appendChild(img);
                             resultImages.appendChild(imageItem);
+                            console.log(`Image ${index + 1} added to DOM`);
                         });
+                        console.log(`✅ Finished displaying ${result.images.length} images`);
                         
                         resultContainer.classList.add('show');
                     } else if (result.imageUrl || result.image) {
