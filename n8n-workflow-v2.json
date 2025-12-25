@@ -95,7 +95,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Aggregate all image results into a single response\n// This processes all items efficiently without loading all data into memory at once\nconst items = $input.all();\n\nconsole.log('Aggregating', items.length, 'image result(s)');\n\n// Extract only image URLs (lightweight)\nconst images = [];\nconst errors = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  \n  if (item.json && item.json.success && item.json.imageUrl) {\n    images.push(item.json.imageUrl);\n  } else if (item.json && item.json.error) {\n    errors.push(`Request ${i + 1}: ${item.json.error}`);\n  }\n}\n\nconsole.log('Total images aggregated:', images.length);\nconsole.log('Total errors:', errors.length);\n\n// Return aggregated result\nreturn [{\n  json: {\n    success: images.length > 0,\n    images: images,\n    imageCount: images.length,\n    errors: errors.length > 0 ? errors : null,\n    totalRequests: items.length\n  }\n}];"
+        "jsCode": "// Aggregate all image results into a single response\n// This processes all items efficiently without loading all data into memory at once\nconst items = $input.all();\n\nconsole.log('Aggregating', items.length, 'image result(s)');\n\n// Extract only image URLs (lightweight)\nconst images = [];\nconst errors = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  \n  // Debug: log what we're processing\n  console.log(`Processing item ${i + 1}:`, item.json ? Object.keys(item.json) : 'no json');\n  \n  if (item.json && item.json.success && item.json.imageUrl) {\n    images.push(item.json.imageUrl);\n    console.log(`Item ${i + 1}: Added image URL (length: ${item.json.imageUrl.length})`);\n  } else if (item.json && item.json.image) {\n    // Fallback: check for 'image' field\n    images.push(item.json.image);\n    console.log(`Item ${i + 1}: Added image from 'image' field`);\n  } else if (item.json && item.json.error) {\n    errors.push(`Request ${i + 1}: ${item.json.error}`);\n    console.log(`Item ${i + 1}: Error - ${item.json.error}`);\n  } else {\n    console.log(`Item ${i + 1}: No image found, json keys:`, item.json ? Object.keys(item.json) : 'no json');\n  }\n}\n\nconsole.log('Total images aggregated:', images.length);\nconsole.log('Total errors:', errors.length);\nconsole.log('First image preview:', images.length > 0 ? images[0].substring(0, 100) + '...' : 'none');\n\n// Return aggregated result\nreturn [{\n  json: {\n    success: images.length > 0,\n    images: images,\n    imageCount: images.length,\n    errors: errors.length > 0 ? errors : null,\n    totalRequests: items.length\n  }\n}];"
       },
       "id": "aggregate-results",
       "name": "Aggregate Results",
@@ -106,7 +106,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ $json ? JSON.stringify($json) : JSON.stringify({success: false, error: 'No data received from workflow'}) }}",
+        "responseBody": "={{ $json && $json.images ? JSON.stringify($json) : JSON.stringify({success: false, error: 'No data received from workflow', images: []}) }}",
         "options": {}
       },
       "id": "webhook-response",

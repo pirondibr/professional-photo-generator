@@ -481,7 +481,8 @@
 
                     // Get response text first to handle empty responses
                     const responseText = await response.text();
-                    console.log('Response text:', responseText);
+                    console.log('Response text length:', responseText.length);
+                    console.log('Response text preview:', responseText.substring(0, 500));
                     
                     if (!responseText || responseText.trim() === '') {
                         throw new Error('Empty response from server');
@@ -490,6 +491,9 @@
                     let result;
                     try {
                         result = JSON.parse(responseText);
+                        console.log('Parsed result:', result);
+                        console.log('Images array:', result.images);
+                        console.log('Images count:', result.images ? result.images.length : 0);
                     } catch (parseError) {
                         console.error('JSON parse error:', parseError, 'Response:', responseText);
                         throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}`);
@@ -499,8 +503,9 @@
                         throw new Error(result.error);
                     }
 
-                    // Display all result images (should be 4)
+                    // Display all result images (should be 24)
                     if (result.images && Array.isArray(result.images) && result.images.length > 0) {
+                        console.log('Displaying', result.images.length, 'images');
                         // Don't clear previous images - append new ones instead
                         // resultImages.innerHTML = ''; // REMOVED: Keep previous images
                         
