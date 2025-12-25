@@ -245,7 +245,7 @@
 <body>
     <div class="container">
         <h1>📸 Professional Photo Generator</h1>
-        <p class="subtitle">Upload up to 5 photos and let AI create your professional image</p>
+        <p class="subtitle">Step 1: Upload up to 5 photos and let AI create 24 professional variations</p>
 
         <div class="upload-area" id="uploadArea">
             <div class="upload-icon">📁</div>
@@ -257,11 +257,6 @@
 
         <div class="preview-container" id="previewContainer"></div>
 
-        <div class="prompt-section">
-            <label for="promptInput">Custom Prompt (optional):</label>
-            <textarea id="promptInput" placeholder="Describe how you want your professional photo to look... (e.g., 'Professional headshot with business attire, studio lighting, high quality')"></textarea>
-        </div>
-
         <div style="text-align: center;">
             <button class="btn" id="generateBtn" disabled>Generate Professional Photo</button>
             <button class="btn" id="clearBtn">Clear All</button>
@@ -269,7 +264,7 @@
 
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p>Generating your professional photo... This may take a moment.</p>
+            <p>Generating 24 professional photo variations... This may take a few moments.</p>
         </div>
 
         <div class="error" id="error"></div>
@@ -289,7 +284,6 @@
             const generateBtn = document.getElementById('generateBtn');
             const clearBtn = document.getElementById('clearBtn');
             const fileCount = document.getElementById('fileCount');
-            const promptInput = document.getElementById('promptInput');
             const loading = document.getElementById('loading');
             const error = document.getElementById('error');
             const resultContainer = document.getElementById('resultContainer');
@@ -464,14 +458,13 @@
                     
                     const imageDataUrls = await Promise.all(imagePromises);
                     
-                    // Send as JSON instead of FormData
+                    // Send as JSON - no prompt needed, workflow has predefined prompts
                     const requestBody = {
-                        images: imageDataUrls,
-                        prompt: promptInput.value || 'Create a professional, high-quality portrait photo with studio lighting'
+                        images: imageDataUrls
                     };
 
-                    // Replace with your n8n webhook URL
-                    const webhookUrl = 'https://pirondi.app.n8n.cloud/webhook/generate-photo';
+                    // New workflow with predefined prompts
+                    const webhookUrl = 'https://pirondi.app.n8n.cloud/webhook/generate-photo-v2';
 
                     const response = await fetch(webhookUrl, {
                         method: 'POST',
