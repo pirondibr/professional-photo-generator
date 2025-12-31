@@ -459,119 +459,112 @@
                     // Update loading message
                     const loadingText = loading.querySelector('p');
                     
-                    // Process 8 prompts sequentially (one at a time)
+                    // Send single request - n8n workflow will handle all 8 prompts internally
                     const webhookUrl = 'https://pirondi.app.n8n.cloud/webhook/studio-selfie-v2-final';
-                    let totalImagesGenerated = 0;
                     
-                    for (let promptIndex = 0; promptIndex < 8; promptIndex++) {
-                        // Update progress
-                        if (loadingText) {
-                            loadingText.textContent = `Generating images ${promptIndex + 1}/8... (${totalImagesGenerated} images so far)`;
-                        }
-                        
-                        console.log(`Processing prompt ${promptIndex + 1}/8`);
-                        
-                        const requestBody = {
-                            images: imageDataUrls,
-                            promptIndex: promptIndex
-                        };
-
-                        let response;
-                        try {
-                            response = await fetch(webhookUrl, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify(requestBody)
-                            });
-                        } catch (fetchError) {
-                            console.error(`Network error for prompt ${promptIndex + 1}:`, fetchError);
-                            if (fetchError.message.includes('CORS') || fetchError.message.includes('cross-origin')) {
-                                error.textContent = `CORS Error: The webhook URL may be incorrect or the workflow is not active. Please check:\n1. The webhook URL is correct in n8n\n2. The workflow is active (toggle ON)\n3. The webhook path matches: /webhook/[your-path] (not /webhook-test/)`;
-                                error.classList.add('show');
-                            } else if (fetchError.message.includes('404')) {
-                                error.textContent = `404 Error: Webhook not found. Please verify:\n1. The webhook URL in n8n matches: https://pirondi.app.n8n.cloud/webhook/[path]\n2. The workflow is active\n3. Copy the exact URL from the Webhook node in n8n`;
-                                error.classList.add('show');
-                            } else {
-                                error.textContent = `Network Error: ${fetchError.message}. Please check the webhook URL and ensure the n8n workflow is active.`;
-                                error.classList.add('show');
-                            }
-                            continue;
-                        }
-
-                        if (!response.ok) {
-                            const errorText = await response.text();
-                            console.error(`Error for prompt ${promptIndex + 1}: Status ${response.status}`, errorText);
-                            
-                            if (response.status === 404) {
-                                error.textContent = `404 Error: Webhook not found at ${webhookUrl}\n\nTo fix this:\n1. Open your n8n workflow\n2. Click on the Webhook node\n3. Copy the Production URL (it should look like: https://pirondi.app.n8n.cloud/webhook/[path])\n4. Update the webhookUrl in the code with the correct URL\n5. Make sure the workflow is ACTIVE (toggle ON)`;
-                                error.classList.add('show');
-                            } else if (response.status === 0 || response.status === null) {
-                                error.textContent = `CORS Error: Cannot access webhook. Please check:\n1. The webhook URL is correct\n2. The workflow is active\n3. The webhook allows CORS (check n8n webhook settings)`;
-                                error.classList.add('show');
-                            } else {
-                                error.textContent = `Error ${response.status}: ${errorText || 'Unknown error'}`;
-                                error.classList.add('show');
-                            }
-                            continue; // Skip this prompt and continue with next
-                        }
-
-                        const responseText = await response.text();
-                        
-                        if (!responseText || responseText.trim() === '') {
-                            console.warn(`Empty response for prompt ${promptIndex + 1}`);
-                            continue;
-                        }
-
-                        let result;
-                        try {
-                            result = JSON.parse(responseText);
-                        } catch (parseError) {
-                            console.error(`JSON parse error for prompt ${promptIndex + 1}:`, parseError);
-                            continue;
-                        }
-
-                        if (result.error) {
-                            console.error(`Error for prompt ${promptIndex + 1}:`, result.error);
-                            continue;
-                        }
-
-                        // Display images as they arrive (progressive loading)
-                        if (result.images && Array.isArray(result.images) && result.images.length > 0) {
-                            console.log(`✅ Received ${result.images.length} images for prompt ${promptIndex + 1}`);
-                            
-                            result.images.forEach((imageUrl, imgIndex) => {
-                                const imageItem = document.createElement('div');
-                                imageItem.className = 'result-image-item';
-                                
-                                const img = document.createElement('img');
-                                img.src = imageUrl;
-                                const timestamp = new Date().toLocaleTimeString();
-                                img.alt = `Generated photo - Prompt ${promptIndex + 1}, Image ${imgIndex + 1} - ${timestamp}`;
-                                
-                                img.onerror = function() {
-                                    console.error(`Failed to load image from prompt ${promptIndex + 1}, image ${imgIndex + 1}`);
-                                };
-                                img.onload = function() {
-                                    totalImagesGenerated++;
-                                    console.log(`✅ Image loaded: Prompt ${promptIndex + 1}, Image ${imgIndex + 1} (Total: ${totalImagesGenerated})`);
-                                };
-                                
-                                imageItem.appendChild(img);
-                                resultImages.appendChild(imageItem);
-                            });
-                        }
-                        
-                        // Small delay between requests to avoid overwhelming the server
-                        if (promptIndex < 7) {
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                        }
+                    if (loadingText) {
+                        loadingText.textContent = `Generating 24 professional photo variations... This may take a few moments.`;
                     }
                     
-                    console.log(`✅ Finished! Generated ${totalImagesGenerated} images total`);
-                    if (loadingText) {
-                        loadingText.textContent = `Complete! Generated ${totalImagesGenerated} images.`;
+                    console.log('Sending single request to n8n workflow (will process all 8 prompts internally)');
+                    
+                    const requestBody = {
+                        images: imageDataUrls
+                        // No promptIndex - let n8n workflow handle all 8 prompts
+                    };
+
+                    let response;
+                    try {
+                        response = await fetch(webhookUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(requestBody)
+                        });
+                    } catch (fetchError) {
+                        console.error('Network error:', fetchError);
+                        if (fetchError.message.includes('CORS') || fetchError.message.includes('cross-origin')) {
+                            error.textContent = `CORS Error: The webhook URL may be incorrect or the workflow is not active. Please check:\n1. The webhook URL is correct in n8n\n2. The workflow is active (toggle ON)\n3. The webhook path matches: /webhook/[your-path] (not /webhook-test/)`;
+                            error.classList.add('show');
+                        } else if (fetchError.message.includes('404')) {
+                            error.textContent = `404 Error: Webhook not found. Please verify:\n1. The webhook URL in n8n matches: https://pirondi.app.n8n.cloud/webhook/[path]\n2. The workflow is active\n3. Copy the exact URL from the Webhook node in n8n`;
+                            error.classList.add('show');
+                        } else {
+                            error.textContent = `Network Error: ${fetchError.message}. Please check the webhook URL and ensure the n8n workflow is active.`;
+                            error.classList.add('show');
+                        }
+                        throw fetchError;
+                    }
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`Error: Status ${response.status}`, errorText);
+                        
+                        if (response.status === 404) {
+                            error.textContent = `404 Error: Webhook not found at ${webhookUrl}\n\nTo fix this:\n1. Open your n8n workflow\n2. Click on the Webhook node\n3. Copy the Production URL (it should look like: https://pirondi.app.n8n.cloud/webhook/[path])\n4. Update the webhookUrl in the code with the correct URL\n5. Make sure the workflow is ACTIVE (toggle ON)`;
+                            error.classList.add('show');
+                        } else if (response.status === 0 || response.status === null) {
+                            error.textContent = `CORS Error: Cannot access webhook. Please check:\n1. The webhook URL is correct\n2. The workflow is active\n3. The webhook allows CORS (check n8n webhook settings)`;
+                            error.classList.add('show');
+                        } else {
+                            error.textContent = `Error ${response.status}: ${errorText || 'Unknown error'}`;
+                            error.classList.add('show');
+                        }
+                        throw new Error(`HTTP ${response.status}: ${errorText}`);
+                    }
+
+                    const responseText = await response.text();
+                    
+                    if (!responseText || responseText.trim() === '') {
+                        throw new Error('Empty response from server');
+                    }
+
+                    let result;
+                    try {
+                        result = JSON.parse(responseText);
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError);
+                        throw new Error('Invalid JSON response from server');
+                    }
+
+                    if (result.error) {
+                        console.error('Error from server:', result.error);
+                        error.textContent = `Error: ${result.error}`;
+                        error.classList.add('show');
+                        throw new Error(result.error);
+                    }
+
+                    // Display all images returned from n8n workflow
+                    if (result.images && Array.isArray(result.images) && result.images.length > 0) {
+                        console.log(`✅ Received ${result.images.length} images total from n8n workflow`);
+                        
+                        result.images.forEach((imageUrl, imgIndex) => {
+                            const imageItem = document.createElement('div');
+                            imageItem.className = 'result-image-item';
+                            
+                            const img = document.createElement('img');
+                            img.src = imageUrl;
+                            const timestamp = new Date().toLocaleTimeString();
+                            img.alt = `Generated photo - Image ${imgIndex + 1} - ${timestamp}`;
+                            
+                            img.onerror = function() {
+                                console.error(`Failed to load image ${imgIndex + 1}`);
+                            };
+                            img.onload = function() {
+                                console.log(`✅ Image loaded: ${imgIndex + 1} of ${result.images.length}`);
+                            };
+                            
+                            imageItem.appendChild(img);
+                            resultImages.appendChild(imageItem);
+                        });
+                        
+                        if (loadingText) {
+                            loadingText.textContent = `Complete! Generated ${result.images.length} images.`;
+                        }
+                        console.log(`✅ Finished! Generated ${result.images.length} images total`);
+                    } else {
+                        throw new Error('No images returned from server');
                     }
 
                 } catch (err) {
