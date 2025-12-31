@@ -460,7 +460,7 @@
                     const loadingText = loading.querySelector('p');
                     
                     // Process 8 prompts sequentially (one at a time)
-                    const webhookUrl = 'https://pirondi.app.n8n.cloud/webhook-test/studio-selfie-v2-492a-9f21';
+                    const webhookUrl = 'https://pirondi.app.n8n.cloud/webhook/studio-selfie-v2-492a-9f21';
                     let totalImagesGenerated = 0;
                     
                     for (let promptIndex = 0; promptIndex < 8; promptIndex++) {
@@ -476,17 +476,44 @@
                             promptIndex: promptIndex
                         };
 
-                        const response = await fetch(webhookUrl, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(requestBody)
-                        });
+                        let response;
+                        try {
+                            response = await fetch(webhookUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(requestBody)
+                            });
+                        } catch (fetchError) {
+                            console.error(`Network error for prompt ${promptIndex + 1}:`, fetchError);
+                            if (fetchError.message.includes('CORS') || fetchError.message.includes('cross-origin')) {
+                                error.textContent = `CORS Error: The webhook URL may be incorrect or the workflow is not active. Please check:\n1. The webhook URL is correct in n8n\n2. The workflow is active (toggle ON)\n3. The webhook path matches: /webhook/[your-path] (not /webhook-test/)`;
+                                error.classList.add('show');
+                            } else if (fetchError.message.includes('404')) {
+                                error.textContent = `404 Error: Webhook not found. Please verify:\n1. The webhook URL in n8n matches: https://pirondi.app.n8n.cloud/webhook/[path]\n2. The workflow is active\n3. Copy the exact URL from the Webhook node in n8n`;
+                                error.classList.add('show');
+                            } else {
+                                error.textContent = `Network Error: ${fetchError.message}. Please check the webhook URL and ensure the n8n workflow is active.`;
+                                error.classList.add('show');
+                            }
+                            continue;
+                        }
 
                         if (!response.ok) {
                             const errorText = await response.text();
-                            console.error(`Error for prompt ${promptIndex + 1}:`, errorText);
+                            console.error(`Error for prompt ${promptIndex + 1}: Status ${response.status}`, errorText);
+                            
+                            if (response.status === 404) {
+                                error.textContent = `404 Error: Webhook not found at ${webhookUrl}\n\nTo fix this:\n1. Open your n8n workflow\n2. Click on the Webhook node\n3. Copy the Production URL (it should look like: https://pirondi.app.n8n.cloud/webhook/[path])\n4. Update the webhookUrl in the code with the correct URL\n5. Make sure the workflow is ACTIVE (toggle ON)`;
+                                error.classList.add('show');
+                            } else if (response.status === 0 || response.status === null) {
+                                error.textContent = `CORS Error: Cannot access webhook. Please check:\n1. The webhook URL is correct\n2. The workflow is active\n3. The webhook allows CORS (check n8n webhook settings)`;
+                                error.classList.add('show');
+                            } else {
+                                error.textContent = `Error ${response.status}: ${errorText || 'Unknown error'}`;
+                                error.classList.add('show');
+                            }
                             continue; // Skip this prompt and continue with next
                         }
 
